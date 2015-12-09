@@ -14,7 +14,8 @@ Functions:
 3. checkDraw() xx
 4. checkForWin() xx
 5. displayBoard() xx
-6. eval() //takes in the state, gives out a value 
+6. evalBoard() xx 
+
 7. checkIfVisited() //takes in the state's matrix and returns true if this has been visited. // if it was visited, also makes sure the path's are also copied, is this even required?
 8. hash() //to store this particular state in a global hashmap
 9. generateNextStep()
@@ -33,6 +34,9 @@ Functions:
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <queue>
+#include <deque>
+
 using namespace std;
 
 int numrows = 6;
@@ -41,6 +45,10 @@ double starttime=0;
 double endtime=0;
 double timeTaken=0;
 std::string level;
+int numProcs;
+std::unordered_map<std::string,bool> globalHashMap; //Maps to the String of the matrix state & the Bool that gives its visited value
+std::unordered_map<std::string,bool> localHashMap;
+
 int evaluationTable[6][7] = {{3, 4, 5, 7, 5, 4, 3}, {4, 6, 8, 10, 8, 6, 4}, {5, 8, 11, 13, 11, 8, 5}, {5, 8, 11, 13, 11, 8, 5}, {4, 6, 8, 10, 8, 6, 4}, {3, 4, 5, 7, 5, 4, 3}};
 struct state {
 
@@ -48,7 +56,8 @@ struct state {
     bool visited;
     int player;
     double boardSum;
-    int **state;
+    std::vector<std::vector<int>> board;
+    //int **board;
     std::vector<int> colHeight;
 
     //state() : visited(false), player(1), boardSum(0) {} //structure's constructor
@@ -57,11 +66,14 @@ struct state {
 
 struct state startState;
 struct state bestState;
+std::deque<struct state> globalQueue;
+std::deque<struct state> localQueue;
+
 
 //global queue of structs state
 std::string giveHash(struct state temp)
 {
-	int **board = temp.state;
+	std::vector<std::vector<int>> board = temp.board;
 	std::string hashVal;
     for(int c=0;c<numcols;c++)
     {
@@ -77,22 +89,59 @@ std::string giveHash(struct state temp)
     return hashVal;
 }
 
+
+
+void displayBoard(struct state temp)
+{
+	//displaying the heading of the board
+	cout<<"\n\n|";
+	for(int col=0; col<numcols; col++)
+		cout<<" "<<col+1<<"  ";
+	cout<<"|\n";
+
+	std::vector<std::vector<int>> board = temp.board;
+
+	for(int row = numrows-1; row>=0; row--)
+	{	cout<<"|";
+		for(int col=0; col<numcols; col++)
+		{
+			if(board[row][col] == 1)
+				cout<<" X  ";
+			else if (board[row][col] == 2)
+				cout<<" O  ";
+			else
+				cout<<" .  ";
+		}
+		cout<<"|\n";
+	}
+	cout<<"'";
+	for(int col=0; col<numcols; col++)
+		cout<<"----";
+	cout<<"'\n\n";
+
+	cout<<"Column Height : [";
+	for(int i =0; i<temp.colHeight.size(); i++)
+		cout<<temp.colHeight[i]<<" ";
+	cout<<"]"<<endl;;
+}
+
+
 int initialiseState()
 {
 	startState.player = 1;
 	double sum;
 
 	//allocate memory for our state
-	int** board = new int* [numrows];
-	for(int ii=0;ii<numrows;ii++)
-	{
-		board[ii] = new int[numcols];
-		//board[ii] = 0;
-	}
+	std::vector<std::vector<int>> board;
 
-	for(int c=0;c<numcols;c++)
-		for(int r=0;r<numrows;r++)
-			board[r][c] = 0;
+	for(int r=0;r<numrows;r++)
+	{
+		std::vector<int> row;
+		for(int c=0;c<numcols;c++)
+			row.push_back(0);
+
+		board.push_back(row);
+	}
 
 	if (level.compare("full") == 0)
 	{
@@ -122,62 +171,44 @@ int initialiseState()
 		return -1;
 	}
 
+	cout<<"\n In Intialisation"<<endl;
+
 	//set startState.colHeight???
 	for(int c=0;c<numcols;c++)
 	{
+		cout<<"\n Column '"<<c<<"'' : ";
 		int height = 0;
 		for(int r=0;r<numrows;r++)
 		{
 			if(board[r][c] != 0)
-				height++;
+				cout<<"height = "<<++height<<" & player = "<<board[r][c]<<"."<<endl;
 		}
 		startState.colHeight.push_back(height);
+		cout<<"\n Height of column '"<<c<<"' is '"<<height<<endl;
 	}
 
-	startState.state = board;
+	startState.board = board;
+
+	cout<<"\n Displaying column of the board 6 : "<<endl;
+	for(int r = 0; r<numrows; r++)
+		cout<<" "<<board[r][6]<<endl; 
+
+	cout<<"\n Displaying column 6 : "<<endl;
+	for(int r = 0; r<numrows; r++)
+		cout<<" "<<startState.board[r][6]<<endl; 
+
+	//displayBoard(startState);
 	return 0;
+
+
 
 	//startState.giveHash(); //visited = giveHash();
 }
 
 
-void displayBoard(struct state temp)
-{
-	//displaying the heading of the board
-	cout<<"\n\n|";
-	for(int col=0; col<numcols; col++)
-		cout<<" "<<col+1<<"  ";
-	cout<<"|\n";
-
-	int **board = temp.state;
-
-	for(int row = numrows-1; row>=0; row--)
-	{	cout<<"|";
-		for(int col=0; col<numcols; col++)
-		{
-			if(board[row][col] == 1)
-				cout<<" X  ";
-			else if (board[row][col] == 2)
-				cout<<" O  ";
-			else
-				cout<<" .  ";
-		}
-		cout<<"|\n";
-	}
-	cout<<"'";
-	for(int col=0; col<numcols; col++)
-		cout<<"----";
-	cout<<"'\n\n";
-
-	/*cout<<"Column Height : [";
-	for(int i =0; i<temp.colHeight.size(); i++)
-		cout<<temp.colHeight[i]<<", ";
-	cout<<" ]";*/
-}
-
 int checkWin(struct state temp)
 {
-	int **board = temp.state;
+	std::vector<std::vector<int>> board = temp.board;
 	int winner = 0;
 	for(int row = 0; row < numrows; row ++)
 	{
@@ -240,7 +271,7 @@ int checkWin(struct state temp)
 
 int testWin ()
 {
-	int **board = startState.state;
+	std::vector<std::vector<int>> board = startState.board;
 	/*board[4][3] = 2;
 	board[4][5] = 1;
 	board[1][0] = 1;
@@ -248,7 +279,11 @@ int testWin ()
 	board[2][4] = 2;
 	board[3][4] = 1;*/
 	int winner = checkWin(startState);
-	cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)";
+	if(winner == 0)
+		cout<<"No Winner!"<<endl;
+	else
+		cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)"<<endl;
+	
 	displayBoard(startState);
 	return 1;
 }
@@ -262,7 +297,7 @@ int checkDraw(struct state temp)
 
 int evalBoard(struct state temp)
 {
-	int **board = temp.state;
+	std::vector<std::vector<int>> board = temp.board;
 	int winner = checkWin(temp);
 	if (winner == 1)
 		return +9999;
@@ -297,12 +332,51 @@ string* mapToStrings(std::unordered_map<std::string,bool> Map)
  	return names;
 }
 
+//generate depth levels of states, from this in all cases  
+void generateGlobalQueue(struct state temp, int depth)
+{	
+	//iterate through the columns & create a new state matrix with the move		
+	for (int i=0; i<numcols; i++)
+	{
+		struct state move = temp;
+		if(move.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
+		{
+			int height = move.colHeight[i];
+			move.board[height][i] = move.player; //adding the move to the board
+			cout<<"\nPushing the player '"<<move.player<<"'' into column '"<<i<<"' with height '"<<height<<endl;
+			move.boardSum+=move.player; //add the player to the boardSum
+			move.player = 3 - move.player; //alternate the player
+			
+			move.colHeight[i]++; //add the columnheight
+
+			if(depth == 1) //if depth = 1, add them to the global queue
+				globalQueue.push_back(move);			
+			else //else call this function back on each of the states
+				generateGlobalQueue(move, depth-1);
+		}
+	}
+}
+
+void printQueueOfStates(std::deque<struct state> queueOfStates)
+{
+	struct state tempQueue;
+	int i = 0;
+
+	//iterate through the queue
+	for(auto it=queueOfStates.begin(); it!=queueOfStates.end();++it)
+    {
+		cout<<"\n State "<<++i<<" in the Queue : "<<endl;
+		displayBoard(*it);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	
 	//MPI_Init(&argc, &argv);
 	//MPI_Comm_rank(MPI_COMM_WORLD, &rank); //the rank of the current matrix
-	//MPI_Comm_size(MPI_COMM_WORLD, &size); //total number of processors
+	//MPI_Comm_size(MPI_COMM_WORLD, &numProcs); //total number of processors
+	numProcs = 1;
 	if(argc < 2) 
 	{
         cout<<"You must provide at least one argument\n";
@@ -317,8 +391,21 @@ int main(int argc, char *argv[])
     displayBoard(startState);
     cout<<"\n Evaluation of the start state : "<<evalBoard(startState)<<endl;
 
-    std::unordered_map<std::string,bool> globalHashMap;
-    std::unordered_map<std::string,bool> localHashMap;
+
+	for(int r = 0;r<numrows;r++)
+	{
+		cout<<"\n";
+		for(int c=0;c<numcols;c++)
+		{
+			cout<<" "<<startState.board[r][c]<<"  ";
+		}
+	}
+
+    generateGlobalQueue(startState, 1); //generating 3 levelled deep states of boards 
+   
+    printQueueOfStates(globalQueue);
+
+
 
     //string* result = mapToStrings(localHashMap); - To conver the local hashmap to a string before sending it to the Manager
     //when the Manager receives this array of strings, it can loop through the array, and add to its global hashmap
@@ -348,7 +435,7 @@ int main(int argc, char *argv[])
 
 
     
-    testWin();
+    //testWin();
 
 
      //ADDITIONAL
