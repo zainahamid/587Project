@@ -21,7 +21,7 @@ Functions:
 9. generateNextStep()
 10. generateGlobalQueue() : this can choose to have atleast double OR triple the number of 	startStates for the workers to take from the manager 
 
-//AVOID a situation where in the eval is going to be a win in the firsr 3 levels
+//AVOID a situation where in the eval is going to be a win in the first 3 levels
 The manager has a list of 3 level down states
 	check the eval value before sending it to the recursive function & before adding it to the queue as well
 	if the eval in any level where the player 'X' just played is 999
@@ -29,13 +29,6 @@ The manager has a list of 3 level down states
 		If its at a deeper level, we need to compare against the B value of the previous level, and return that state for which the B value was the lowest
 
 // IDEALLY to check the program that I'm creating I shouldnt have a state where within 3 levels itself there is a win.  MAKE SURE
-
-// IN my main now that I have a manager queue which has content, I have to do this
-
-while(localState = globalQueue.pop_front)
-{
-	local state needs to be checked over
-}
 
 */
 
@@ -74,7 +67,6 @@ struct state {
     int player;
     double boardSum;
     std::vector<std::vector<int>> board;
-    //int **board;
     std::vector<int> colHeight;
 
     //state() : visited(false), player(1), boardSum(0) {} //structure's constructor
@@ -89,7 +81,7 @@ std::deque<struct state> globalQueue;
 std::deque<struct state> localQueue;
 
 
-//global queue of structs state
+//gives the hash value for that state
 std::string giveHash(struct state temp)
 {
 	std::vector<std::vector<int>> board = temp.board;
@@ -98,7 +90,7 @@ std::string giveHash(struct state temp)
     {
 		for(int r=0;r<numrows;r++)
 		{
-			if (board[r][c]==0)
+			if (board[r][c]==0) //End of elements in that column
 				break;
             else
             	hashVal+=std::to_string(board[r][c]);
@@ -109,7 +101,7 @@ std::string giveHash(struct state temp)
 }
 
 
-
+//displays the board : temp
 void displayBoard(struct state temp)
 {
 	//displaying the heading of the board
@@ -143,6 +135,19 @@ void displayBoard(struct state temp)
 	for(int i =0; i<temp.colHeight.size(); i++)
 		cout<<temp.colHeight[i]<<" ";
 	cout<<"]"<<endl;*/
+
+	/*Printing the path vector*/
+	if(temp.path.size())
+	{
+		cout<<"\n Path Taken : ";
+		for (int i=0;i<temp.path.size(); i++)
+		{
+			//each path[i] is the first path taken which is a pair of pairs
+			cout<<"\n\t Player "<<temp.path[i].second<<" : at ["<<temp.path[i].first.first<<","<<temp.path[i].first.second<<"].";
+		}
+		cout<<endl;
+	}
+
 }
 
 
@@ -150,7 +155,6 @@ int initialiseState()
 {
 	startState.player = 1;
 	double sum;
-
 	//allocate memory for our state
 	std::vector<std::vector<int>> board;
 
@@ -159,7 +163,6 @@ int initialiseState()
 		std::vector<int> row;
 		for(int c=0;c<numcols;c++)
 			row.push_back(0);
-
 		board.push_back(row);
 	}
 
@@ -206,7 +209,6 @@ int initialiseState()
 	}
 
 	startState.board = board;
-
 	//displayBoard(startState);
 	return 0;
 }
@@ -351,8 +353,8 @@ void generateGlobalQueue(struct state temp, int depth)
 			move.board[height][i] = move.player; //adding the move to the board
 			//cout<<"\nPushing the player '"<<move.player<<"'' into column '"<<i<<"' with height '"<<height<<endl;
 			move.boardSum+=move.player; //add the player to the boardSum
+			move.path.push_back(std::make_pair(std::make_pair (height,i), move.player)); //Pushing back this pair into the path taken vector	
 			move.player = 3 - move.player; //alternate the player
-			
 			move.colHeight[i]++; //add the columnheight
 
 			if(depth == 1) //if depth = 1, add them to the global queue
@@ -397,6 +399,7 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 			if(local.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
 			{
 				local.board[local.colHeight[i]][i] = local.player; //adding the move to the board
+				local.path.push_back(std::make_pair(std::make_pair (local.colHeight[i],i), local.player)); //Pushing back this pair into the path taken vector	
 				local.boardSum+=local.player; //add the player to the boardSum
 				local.player = 3 - local.player; //alternate the player
 				local.colHeight[i]++; //add the columnheight
@@ -407,12 +410,12 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 				if (local.player == 1) //Max player
 				{
 					if (tempval > val)
-						val = tempval; // do what needs to be done in a max node
+						val = tempval; 
 				}
 				else //Min Player
 				{
 					if (tempval < val)
-						val = tempval; //do what needs to be done in a min node		
+						val = tempval;	
 				}					
 			}
 
@@ -458,12 +461,12 @@ int main(int argc, char *argv[])
     cout<<"\n Evaluation of the start state : "<<evalBoard(startState)<<endl;
 
 	generateGlobalQueue(startState, 2); //generating 3 levelled deep states of boards 
-	//printQueueOfStates(globalQueue);
+	printQueueOfStates(globalQueue);
 
 
 	//until the Mgr has something to give, the localStartState = localQueue = globalQueue;       
 	//pop from the local queue and run DFS through it
-	while (!globalQueue.empty())
+	/*while (!globalQueue.empty())
 	{
 		localStartState = globalQueue.at(0);
 		globalQueue.pop_front();
@@ -472,7 +475,7 @@ int main(int argc, char *argv[])
 		//check this value with the existing value of state in the manager
 		//compare and if this value is max, store this localStartState in the best before carrying on
 		//ultimately return this best state's : path vector's column value. (1'st tuple's second value);  
-	}
+	}*/
 
     //string* result = mapToStrings(localHashMap); - To conver the local hashmap to a string before sending it to the Manager
     //when the Manager receives this array of strings, it can loop through the array, and add to its global hashmap
