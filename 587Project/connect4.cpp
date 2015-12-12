@@ -56,6 +56,7 @@ double endtime=0;
 double timeTaken=0;
 std::string level;
 int numProcs;
+int globalBestVal;
 std::unordered_map<std::string,bool> globalHashMap; //Maps to the String of the matrix state & the Bool that gives its visited value
 std::unordered_map<std::string,bool> localHashMap;
 
@@ -493,16 +494,28 @@ int main(int argc, char *argv[])
 
 	//until the Mgr has something to give, the localStartState = localQueue = globalQueue;       
 	//pop from the local queue and run DFS through it
+	globalBestState = startState;
+	globalBestVal = -9999;
 	while (!globalQueue.empty())
 	{
 		localStartState = globalQueue.at(0);
 		globalQueue.pop_front();
-
 		int value = runAlphaBeta(localStartState, -9999, 9999, 4); 
+
+		if (value > globalBestVal)
+		{
+			globalBestState = localStartState;
+			globalBestVal = value;
+		}
 		//check this value with the existing value of state in the manager
 		//compare and if this value is max, store this localStartState in the best before carrying on
 		//ultimately return this best state's : path vector's column value. (1'st tuple's second value);  
 	}
+
+	cout<<"\n The Best first move for you to play would be : ";
+	cout<<"Player "<<globalBestState.path[0].second<<" : at ["<<globalBestState.path[0].first.first<<","<<globalBestState.path[0].first.second<<"]."<<endl;
+
+	//displayBoard(globalBestState);
 
     //string* result = mapToStrings(localHashMap); - To conver the local hashmap to a string before sending it to the Manager
     //when the Manager receives this array of strings, it can loop through the array, and add to its global hashmap
