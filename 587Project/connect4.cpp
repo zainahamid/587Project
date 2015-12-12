@@ -136,8 +136,8 @@ void displayBoard(struct state temp)
 		cout<<temp.colHeight[i]<<" ";
 	cout<<"]"<<endl;*/
 
-	/*Printing the path vector*/
-	if(temp.path.size())
+	//Printing the path vector
+	/*if(temp.path.size())
 	{
 		cout<<"\n Path Taken : ";
 		for (int i=0;i<temp.path.size(); i++)
@@ -146,7 +146,7 @@ void displayBoard(struct state temp)
 			cout<<"\n\t Player "<<temp.path[i].second<<" : at ["<<temp.path[i].first.first<<","<<temp.path[i].first.second<<"].";
 		}
 		cout<<endl;
-	}
+	}*/
 
 }
 
@@ -343,7 +343,8 @@ string* mapToStrings(std::unordered_map<std::string,bool> Map)
 //generate depth levels of states, from this in all cases  
 void generateGlobalQueue(struct state temp, int depth)
 {	
-	//iterate through the columns & create a new state matrix with the move		
+	//iterate through the columns & create a new state matrix with the move	
+
 	for (int i=0; i<numcols; i++)
 	{
 		struct state move = temp;
@@ -357,8 +358,19 @@ void generateGlobalQueue(struct state temp, int depth)
 			move.player = 3 - move.player; //alternate the player
 			move.colHeight[i]++; //add the columnheight
 
-			if(depth == 1) //if depth = 1, add them to the global queue
-				globalQueue.push_back(move);			
+			if(depth == 1)
+			{ //if depth = 1, add them to the global queue
+				std::string tempHash = giveHash(move);//get The hash of this state 
+				//check if this hash already exists in my map
+				if (globalHashMap.find(tempHash) != globalHashMap.end()) //which means for find(tempHash) a value was returned that wasn't .end(), hence it exists
+					continue;
+				else
+				{
+					globalQueue.push_back(move);
+					globalHashMap[tempHash] = 1;
+					//globalHashMap.insert({tempHash,1});//add it to the hashmap std::unordered_map<std::string,bool> 
+				}
+			}		
 			else //else call this function back on each of the states
 				generateGlobalQueue(move, depth-1);
 		}
@@ -404,7 +416,21 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 				local.player = 3 - local.player; //alternate the player
 				local.colHeight[i]++; //add the columnheight
 
-				tempval = runAlphaBeta(local, alpha, beta, depth -1);
+				std::string tempHash = giveHash(local);//get The hash of this state 
+				//check if this hash already exists in my map
+				if (globalHashMap.find(tempHash) != globalHashMap.end()) //which means for find(tempHash) a value was returned that wasn't .end(), hence it exists
+					continue;
+				else
+				{
+					globalHashMap[tempHash] = 1;
+					tempval = runAlphaBeta(local, alpha, beta, depth -1);
+				}
+
+				//now that we have a new move : Local
+				//check if this move exists in the MAP, if it does, continue and dont check for this move
+				//if it doesn't add it to the hashmap and call the function on if
+
+				//tempval = runAlphaBeta(local, alpha, beta, depth -1);
 
 				local = temp;
 				if (local.player == 1) //Max player
@@ -460,13 +486,14 @@ int main(int argc, char *argv[])
     displayBoard(startState);
     cout<<"\n Evaluation of the start state : "<<evalBoard(startState)<<endl;
 
-	generateGlobalQueue(startState, 2); //generating 3 levelled deep states of boards 
-	printQueueOfStates(globalQueue);
+	generateGlobalQueue(startState, 3); //generating 3 levelled deep states of boards 
+	cout<<"\n The Global Queue's size : "<<globalQueue.size()<<endl;
+	 //printQueueOfStates(globalQueue);
 
 
 	//until the Mgr has something to give, the localStartState = localQueue = globalQueue;       
 	//pop from the local queue and run DFS through it
-	/*while (!globalQueue.empty())
+	while (!globalQueue.empty())
 	{
 		localStartState = globalQueue.at(0);
 		globalQueue.pop_front();
@@ -475,7 +502,7 @@ int main(int argc, char *argv[])
 		//check this value with the existing value of state in the manager
 		//compare and if this value is max, store this localStartState in the best before carrying on
 		//ultimately return this best state's : path vector's column value. (1'st tuple's second value);  
-	}*/
+	}
 
     //string* result = mapToStrings(localHashMap); - To conver the local hashmap to a string before sending it to the Manager
     //when the Manager receives this array of strings, it can loop through the array, and add to its global hashmap
