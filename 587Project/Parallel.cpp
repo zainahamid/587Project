@@ -46,28 +46,28 @@ const int numrows = 6;
 const int numcols = 7;
 const int evaluationTable[6][7] = {{3, 4, 5, 7, 5, 4, 3}, {4, 6, 8, 10, 8, 6, 4}, {5, 8, 11, 13, 11, 8, 5}, {5, 8, 11, 13, 11, 8, 5}, {4, 6, 8, 10, 8, 6, 4}, {3, 4, 5, 7, 5, 4, 3}};
 
-int nt rank, size; //processor number & total no of processors
-
 double starttime=0;
 double endtime=0;
 double timeTaken=0;
 
 std::string level;
-int numProcs;
+int pid, numProcs; //processor number & total no of processors
 int globalBestVal;
+
 std::unordered_map<std::string,bool> globalHashMap; //Maps to the String of the matrix state & the Bool that gives its visited value
 std::unordered_map<std::string,bool> localHashMap;
 
 struct state {
 
-    std::vector<std::pair<std::pair<int, int>, int> > path; //vector of pairs 
-    bool visited;
+    int path [12];
+    int board [numrows][numcols];
     int player;
     int boardSum;
-    std::vector<std::vector<int>> board;
-    std::vector<int> colHeight;
+    int colHeight [numcols];
 	//write a giveHash() function inside this, that takes the matrix, and sets a hash value for it in the global hash map,
 };
+
+#define NBLOCKS 5
 
 struct state startState;
 struct state localBestState;
@@ -79,16 +79,18 @@ std::deque<struct state> localQueue;
 //gives the hash value for that state
 std::string giveHash(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	std::string hashVal;
     for(int c=0;c<numcols;c++)
     {
 		for(int r=0;r<numrows;r++)
 		{
-			if (board[r][c]==0) //End of elements in that column
+			if (temp.board[r][c]==0) //End of elements in that column
 				break;
+            else if (temp.board[r][c]==1)
+            	hashVal+='1';
             else
-            	hashVal+=std::to_string(board[r][c]);
+            	hashVal+='2';
 		}
 		hashVal+="|";
 	}		
@@ -105,15 +107,15 @@ void displayBoard(struct state temp)
 		cout<<" "<<col+1<<"  ";
 	cout<<"|\n";
 
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 
 	for(int row = numrows-1; row>=0; row--)
 	{	cout<<"|";
 		for(int col=0; col<numcols; col++)
 		{
-			if(board[row][col] == 1)
+			if(temp.board[row][col] == 1)
 				cout<<" X  ";
-			else if (board[row][col] == 2)
+			else if (temp.board[row][col] == 2)
 				cout<<" O  ";
 			else
 				cout<<" .  ";
@@ -150,36 +152,35 @@ int initialiseState()
 	startState.player = 1;
 	int sum;
 	//allocate memory for our state
-	std::vector<std::vector<int>> board;
+	//std::vector<std::vector<int>> board;
 
 	for(int r=0;r<numrows;r++)
-	{
-		std::vector<int> row;
 		for(int c=0;c<numcols;c++)
-			row.push_back(0);
-		board.push_back(row);
-	}
+			startState.board[r][c]=0;
 
 	if (level.compare("full") == 0)
 	{
-		board[0][0] = board[0][2] = board[0][3] = board[0][6] = board[1][1] = board[1][2] = board[1][4] = board[1][5]
-		= board[2][0] = board[2][4] = board[2][6] = board[3][1] = board[3][5] = board[4][3] = board[4][6] = 1;
+		startState.board[0][0] = startState.board[0][2] = startState.board[0][3] = startState.board[0][6] = startState.board[1][1] = startState.board[1][2] 
+		= startState.board[1][4] = startState.board[1][5] = startState.board[2][0] = startState.board[2][4] = startState.board[2][6] = startState.board[3][1] 
+		= startState.board[3][5] = startState.board[4][3] = startState.board[4][6] = 1;
 		
-		board[0][1] = board[0][4] = board[0][5] = board[1][0] = board[1][3] = board[1][6] = board[2][1] = board[2][2]
-		= board[2][3] = board[2][5] = board[3][2] = board[3][3] = board[3][4] = board[3][6] = board[4][5] = 2;
-		
+		startState.board[0][1] = startState.board[0][4] = startState.board[0][5] = startState.board[1][0] = startState.board[1][3] = startState.board[1][6] 
+		= startState.board[2][1] = startState.board[2][2] = startState.board[2][3] = startState.board[2][5] = startState.board[3][2] = startState.board[3][3] 
+		= startState.board[3][4] = startState.board[3][6] = startState.board[4][5] = 2;
+
 		startState.boardSum = 45;
 	}
+
 	else if (level.compare("middle") == 0)
 	{
-		board[0][0] = board[0][1] = board[0][2] = board[0][4] = board[1][2] = board[2][3] = board[2][4] = 1;
-		board[0][3] = board[1][0] = board[1][1] = board[1][3] = board[1][4] = board[2][2] = board[3][4] = 2;
+		startState.board[0][0] = startState.board[0][1] = startState.board[0][2] = startState.board[0][4] = startState.board[1][2] = startState.board[2][3] = startState.board[2][4] = 1;
+		startState.board[0][3] = startState.board[1][0] = startState.board[1][1] = startState.board[1][3] = startState.board[1][4] = startState.board[2][2] = startState.board[3][4] = 2;
 		startState.boardSum = 21;
 	}
 	else if (level.compare("begin") == 0)
 	{
-		board[0][1] = board[0][3] = board[0][4] = 1;
-		board[0][2] = board[0][5] = board[0][6] = 2;
+		startState.board[0][1] = startState.board[0][3] = startState.board[0][4] = 1;
+		startState.board[0][2] = startState.board[0][5] = startState.board[0][6] = 2;
 		startState.boardSum = 9;
 	}
 	else //incorrect Input
@@ -194,14 +195,14 @@ int initialiseState()
 	{
 		int height = 0;
 		for(int r=0;r<numrows;r++)
-			if(board[r][c] != 0)
+			if(startState.board[r][c] != 0)
 				++height;
 
-		startState.colHeight.push_back(height);
+		startState.colHeight[c] = height;
 		//cout<<"\n Height of column '"<<c<<"' is '"<<height<<endl;
 	}
 
-	startState.board = board;
+	//startState.board = board;
 	//displayBoard(startState);
 	return 0;
 }
@@ -209,22 +210,22 @@ int initialiseState()
 
 int checkWin(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	int winner = 0;
 	for(int row = 0; row < numrows; row ++)
 	{
 		for(int col = 0; col < numcols; col ++)
 		{
-			if(board[row][col] != 0)
+			if(temp.board[row][col] != 0)
 			{
 				// Across
 				if(col < numcols-3)
 				{
-					if (board[row][col] == board[row][col+1] &&
-						board[row][col] == board[row][col+2] &&
-						board[row][col] == board[row][col+3])
+					if (temp.board[row][col] == temp.board[row][col+1] &&
+						temp.board[row][col] == temp.board[row][col+2] &&
+						temp.board[row][col] == temp.board[row][col+3])
 						{
-							winner = board[row][col];
+							winner = temp.board[row][col];
 							break;
 						}
 				}
@@ -232,33 +233,35 @@ int checkWin(struct state temp)
 				// Upwards/downwards
 				if(row < numrows-3)
 				{
-					if (board[row][col] == board[row+1][col] &&
-						board[row][col] == board[row+2][col] &&
-						board[row][col] == board[row+3][col])
+					if (temp.board[row][col] == temp.board[row+1][col] &&
+						temp.board[row][col] == temp.board[row+2][col] &&
+						temp.board[row][col] == temp.board[row+3][col])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
+
 				//Diagonal down-right or up-left
 				if(row < numrows-3 && col < numcols-3)
 				{
-					if (board[row][col] == board[row+1][col+1] &&
-						board[row][col] == board[row+2][col+2] &&
-						board[row][col] == board[row+3][col+3])
+					if (temp.board[row][col] == temp.board[row+1][col+1] &&
+						temp.board[row][col] == temp.board[row+2][col+2] &&
+						temp.board[row][col] == temp.board[row+3][col+3])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
+				
 				//Diagonal down-left or up-right
 				if(row > 3 && col < numcols-3)
 				{
-					if (board[row][col] == board[row-1][col+1] &&
-						board[row][col] == board[row-2][col+2] &&
-						board[row][col] == board[row-3][col+3])
+					if (temp.board[row][col] == temp.board[row-1][col+1] &&
+						temp.board[row][col] == temp.board[row-2][col+2] &&
+						temp.board[row][col] == temp.board[row-3][col+3])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
@@ -270,24 +273,24 @@ int checkWin(struct state temp)
 	return (winner);
 }
 
-int testWin ()
-{
-	std::vector<std::vector<int>> board = startState.board;
-	/*board[4][3] = 2;
-	board[4][5] = 1;
-	board[1][0] = 1;
-	board[2][0] = 2;
-	board[2][4] = 2;
-	board[3][4] = 1;*/
-	int winner = checkWin(startState);
-	if(winner == 0)
-		cout<<"No Winner!"<<endl;
-	else
-		cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)"<<endl;
+// int testWin ()
+// {
+// 	std::vector<std::vector<int>> board = startState.board;
+// 	/*board[4][3] = 2;
+// 	board[4][5] = 1;
+// 	board[1][0] = 1;
+// 	board[2][0] = 2;
+// 	board[2][4] = 2;
+// 	board[3][4] = 1;*/
+// 	int winner = checkWin(startState);
+// 	if(winner == 0)
+// 		cout<<"No Winner!"<<endl;
+// 	else
+// 		cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)"<<endl;
 	
-	displayBoard(startState);
-	return 1;
-}
+// 	displayBoard(startState);
+// 	return 1;
+// }
 
 int checkDraw(struct state temp)
 {
@@ -298,7 +301,7 @@ int checkDraw(struct state temp)
 
 int evalBoard(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	int winner = checkWin(temp);
 	if (winner == 1)
 		return +999;
@@ -314,9 +317,9 @@ int evalBoard(struct state temp)
 			int evalSum = 0;
 			for(int r=0;r<numrows;r++)
 				for(int c=0;c<numcols;c++)
-					if(board[r][c] == 1)
+					if(temp.board[r][c] == 1)
 						evalSum += evaluationTable[r][c];
-					else if (board[r][c]== 2)
+					else if (temp.board[r][c]== 2)
 						evalSum -= evaluationTable[r][c];
 			return evalSum;
 		}
@@ -344,10 +347,13 @@ void generateGlobalQueue(struct state temp, int depth)
 		if(move.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
 		{
 			int height = move.colHeight[i];
+			int pi = abs(depth-3) * 3;
 			move.board[height][i] = move.player; //adding the move to the board
 			//cout<<"\nPushing the player '"<<move.player<<"'' into column '"<<i<<"' with height '"<<height<<endl;
 			move.boardSum+=move.player; //add the player to the boardSum
-			move.path.push_back(std::make_pair(std::make_pair (height,i), move.player)); //Pushing back this pair into the path taken vector	
+			move.path[pi++] = height;
+			move.path[pi++] = i;
+			move.path[pi++] = move.player; //Pushing back this pair into the path taken vector	
 			move.player = 3 - move.player; //alternate the player
 			move.colHeight[i]++; //add the columnheight
 
@@ -404,7 +410,7 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 			if(local.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
 			{
 				local.board[local.colHeight[i]][i] = local.player; //adding the move to the board
-				local.path.push_back(std::make_pair(std::make_pair (local.colHeight[i],i), local.player)); //Pushing back this pair into the path taken vector	
+				//local.path.push_back(std::make_pair(std::make_pair (local.colHeight[i],i), local.player)); //Pushing back this pair into the path taken vector	
 				local.boardSum+=local.player; //add the player to the boardSum
 				local.player = 3 - local.player; //alternate the player
 				local.colHeight[i]++; //add the columnheight
@@ -454,11 +460,29 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 
 int main(int argc, char *argv[])
 {
-	
 	MPI_Init(&argc, &argv);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank); //the rank of the current matrix
+	MPI_Comm_rank(MPI_COMM_WORLD, &pid); //the rank of the current matrix
 	MPI_Comm_size(MPI_COMM_WORLD, &numProcs); //total number of processors
 	
+	int array_of_blocklengths[NBLOCKS] = {12,42,1,1,7};
+	MPI_Aint array_of_displacements[NBLOCKS];
+
+	MPI_Datatype array_of_types[NBLOCKS] = {MPI_INT, MPI_INT, MPI_INT, MPI_INT, MPI_INT};
+	MPI_Datatype stateType;
+
+	MPI_Aint ex, lowerBound;
+
+	array_of_displacements[0]=0;
+
+	MPI_Type_get_extent(MPI_INT, &lowerBound, &ex);
+	array_of_displacements[1] = ex*12;
+	array_of_displacements[2] = array_of_displacements[1] + ex*42;
+	array_of_displacements[3] = array_of_displacements[2] + ex;
+	array_of_displacements[4] = array_of_displacements[3] + ex;
+
+	MPI_Type_struct (5, array_of_blocklengths, array_of_displacements, array_of_types, &stateType);
+	MPI_Type_commit (&stateType);
+
 	if(argc < 2) 
 	{
         cout<<"You must provide at least one argument\n";
@@ -469,7 +493,7 @@ int main(int argc, char *argv[])
     std::string l(argv[1]);
     level = l;
 
-	if (rank == 0)
+	if (pid == 0)
 	{
 		if (initialiseState() == -1)
 		{
@@ -477,13 +501,13 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 
-		cout<<"\n Processor '"<<rank<<"' : Beginning state - "<<endl;
+		cout<<"\n Processor '"<<pid<<"' : Beginning state - "<<endl;
 		displayBoard(startState);
 
-    	cout<<"\n Processor '"<<rank<<"' : Evaluation of the start state : "<<evalBoard(startState)<<endl;
+    	cout<<"\n Processor '"<<pid<<"' : Evaluation of the start state : "<<evalBoard(startState)<<endl;
     	
     	generateGlobalQueue(startState, 3); //generating 3 levelled deep states of boards 
-		cout<<"\n Processor '"<<rank<<"' : The Global Queue's size : "<<globalQueue.size()<<endl;
+		cout<<"\n Processor '"<<pid<<"' : The Global Queue's size : "<<globalQueue.size()<<endl;
 		//printQueueOfStates(globalQueue);
 	
 		globalBestState = startState;
@@ -492,10 +516,11 @@ int main(int argc, char *argv[])
 
 	MPI_Barrier(MPI_COMM_WORLD); //all threads are here, and the manager has some work ready in its queue
 
-	if (rank == 0)
+	if (pid == 0)
 	{
 		starttime = MPI_Wtime();
-		"\n Processor '"<<rank<<"' : Start time :"<<starttime;
+		cout<<"\n Processor '"<<pid<<"' : Start time :"<<starttime;
+		void* sendState;
 
 		int count = globalQueue.size();
 		struct state localStartState;
@@ -503,9 +528,12 @@ int main(int argc, char *argv[])
 		{
 			localStartState = globalQueue.at(0);
 			globalQueue.pop_front();
+			//sendState = void*(localStartState);
 
-			MPI_Send(void*(localStartState), sizeof(localStartState), MPI_CHAR, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
-			MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
+			MPI_Send(&localStartState, 1, stateType, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			//MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
+			cout<<"\n Sent data for Player "<<localStartState.player<<" with sum "<<localStartState.sum<<" to Proc"<<i;
+			
 		}
 
 		
@@ -513,27 +541,33 @@ int main(int argc, char *argv[])
 		while (count)
 		{
 			int *val;
-			void *receivedState, *receivedHashmap;
+			//void *receivedState, *receivedHashmap;
 
-			MPI_STATUS status;
-			MPI_RECV (val, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status); //2 represents the value
-			MPI_RECV (receivedState, 1, MPI_INT, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //3 Represents the state of the matrix
-			MPI_RECV (receivedHashmap, 1, MPI_INT, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status); //4 represents the HashMap
+			MPI_Status status;
+			MPI_Recv (val, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status); //2 represents the value
+			//MPI_Recv (receivedState, sizeof(localStartState), MPI_BYTE, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //3 Represents the state of the matrix
+			MPI_Recv(&localStartState, 1, stateType, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //0 corresponds to the state struct
 			
+			//MPI_RECV (receivedHashmap, 1, MPI_INT, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status); //4 represents the HashMap
+			cout<<"\n Received data in 0 for Player "<<localStartState.player<<" with VALUE "<<*val<<" from Proc"<<status.MPI_SOURCE;
+
+
 			count--;
 
 			//add the hashmap to mine
 
 			localStartState = globalQueue.at(0);
 
-			MPI_Send(void*(localStartState), sizeof(localStartState), MPI_CHAR, status.MPI_SOURCE, 0, MPI_COMM_WORLD);//0 corresponds to the state struct
-			MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, status.MPI_SOURCE, 1, MPI_COMM_WORLD);//1 corresponds to hash map
+			MPI_Send(&localStartState, 1, stateType, status.MPI_SOURCE, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			
+			//MPI_Send(void*(localStartState), sizeof(localStartState), MPI_BYTE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);//0 corresponds to the state struct
+			//MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, status.MPI_SOURCE, 1, MPI_COMM_WORLD);//1 corresponds to hash map
 			
 			globalQueue.pop_front();
 
 			if (*val > globalBestVal)
 			{
-				globalBestState = struct state*(stateReceived);
+				globalBestState = localStartState;
 				globalBestVal = *val;
 			}
 		}
@@ -541,10 +575,13 @@ int main(int argc, char *argv[])
 		//for loop that sends a DUMMY OBJECT with the player value = -1 to all my workers
 		for (int i=1; i<numProcs; i++) //sending some work for all to start on
 		{
+			cout<<"\n Sending an abort message to all procs"<<endl;
+
 			localStartState = startState;
 			localStartState.player = -1;
 
-			MPI_ISend(void*(localStartState), sizeof(localStartState), MPI_CHAR, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			MPI_Send(&localStartState, 1, stateType, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			//MPI_Send(void*(localStartState), sizeof(localStartState), MPI_BYTE, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
 			//may not need to send this
 				//MPI_ISend(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
 		}
@@ -552,31 +589,43 @@ int main(int argc, char *argv[])
 
 	else
 	{
+		int count = 20;
+		cout<<"\n In Processor "<<pid;
 		struct state localStartState;
-		while (true) //if I received something from the manager the manager hasnt asked me to quit and ths	
+		while (count--) //if I received something from the manager the manager hasnt asked me to quit and ths	
 		{
-			void *receivedState, *receivedHashmap;
+			//void *receivedState, *receivedHashmap;
+			cout<<endl<<"Processor "<<pid<<" & count : "<<count;
 
-			MPI_Recv(receivedState, sizeof(localStartState), MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //0 corresponds to the state struct
-			MPI_Recv(receivedHashmap, sizeof(globalHashMap), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(&localStartState, 1, stateType, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //0 corresponds to the state struct
+
+			cout<<"\n Received data for Player "<<localStartState.player<<" with sum "<<localStartState.boardSum<<" in Proc"<<pid;
 			
-			localStartState = struct state *(receivedState);
+			//MPI_Recv(receivedState, sizeof(localStartState), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //0 corresponds to the state struct
+			//MPI_Recv(receivedHashmap, sizeof(globalHashMap), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			
+			//localStartState = struct state *(receivedState);
 			if (localStartState.player == -1)
 				break;
 
 			//globalHashMap = 
 			int value = runAlphaBeta(localStartState, -9999, 9999, 4); 
 
-			MPI_Send (*value, 1, MPI_INT, 0, 2, MPI_COMM_WORLD); //2 represents the value
-			MPI_Send (void*(localStartState), sizeof(localStartState), MPI_CHAR,0, 3, MPI_COMM_WORLD); //3 Represents the state of the matrix
-			MPI_Send (void*(globalHashMap), sizeof(globalHashMap), MPI_CHAR, 0, 4, MPI_COMM_WORLD); //4 represents the HashMap
+			MPI_Send (&value, 1, MPI_INT, 0, 2, MPI_COMM_WORLD); //2 represents the value
+			MPI_Send(&localStartState, 1, stateType, 0, 3, MPI_COMM_WORLD); //0 corresponds to the state struct
+			cout<<"\n Sent data for Player "<<localStartState.player<<" with VALUE "<<value<<" in Proc"<<pid;
+			
+			
+			//MPI_Send (void*(localStartState), sizeof(localStartState), MPI_BYTE,0, 3, MPI_COMM_WORLD); //3 Represents the state of the matrix
+			//MPI_Send (void*(globalHashMap), sizeof(globalHashMap), MPI_CHAR, 0, 4, MPI_COMM_WORLD); //4 represents the HashMap
 		}
 		
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD); //post the while loop of the manager, and all the threads are done with their work, hence they're here
-	
-	if (rank == 0)
+	cout<<endl<<"Post While Loop";
+
+	if (pid == 0)
 	{
 		//call MPI_WTime again
 		endtime = MPI_Wtime();
@@ -584,7 +633,7 @@ int main(int argc, char *argv[])
 
 		//Ultimately print the first pair of the best state, suggesting that path can be taken,
 		cout<<"\n The Best first move for you to play would be : ";
-		cout<<"Player "<<globalBestState.path[0].second<<" : at ["<<globalBestState.path[0].first.first<<","<<globalBestState.path[0].first.second<<"]."<<endl;
+		cout<<"Player "<<globalBestState.path[2]<<" : at ["<<globalBestState.path[0]<<","<<globalBestState.path[1]<<"]."<<endl;
 		cout<<"\nTime Taken : "<<timeTaken<<endl;
 
 	}
