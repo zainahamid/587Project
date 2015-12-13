@@ -26,7 +26,7 @@ The manager has a list of 3 level down states
 		If its at a deeper level, we need to compare against the B value of the previous level, and return that state for which the B value was the lowest
 */
 
-//#include <mpi.h>
+#include <mpi.h>
 #include <iostream>
 #include <cmath>
 #include <cstdio>
@@ -45,6 +45,8 @@ using namespace std;
 const int numrows = 6;
 const int numcols = 7;
 const int evaluationTable[6][7] = {{3, 4, 5, 7, 5, 4, 3}, {4, 6, 8, 10, 8, 6, 4}, {5, 8, 11, 13, 11, 8, 5}, {5, 8, 11, 13, 11, 8, 5}, {4, 6, 8, 10, 8, 6, 4}, {3, 4, 5, 7, 5, 4, 3}};
+
+int nt rank, size; //processor number & total no of processors
 
 double starttime=0;
 double endtime=0;
@@ -453,83 +455,151 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 int main(int argc, char *argv[])
 {
 	
-	//MPI_Init(&argc, &argv);
-	//MPI_Comm_rank(MPI_COMM_WORLD, &rank); //the rank of the current matrix
-	//MPI_Comm_size(MPI_COMM_WORLD, &numProcs); //total number of processors
-	numProcs = 1;
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank); //the rank of the current matrix
+	MPI_Comm_size(MPI_COMM_WORLD, &numProcs); //total number of processors
+	
 	if(argc < 2) 
 	{
         cout<<"You must provide at least one argument\n";
         exit(0);
     }
+
+    //level = argv[1]; //level of the initial state to be generated
     std::string l(argv[1]);
     level = l;
 
-    struct state localStartState;
-
-    //level = argv[1]; //level of the initial state to be generated
-    if(initialiseState() == -1)
-    	exit(0); //fills startState with the type given in level
-    displayBoard(startState);
-    cout<<"\n Evaluation of the start state : "<<evalBoard(startState)<<endl;
-
-	generateGlobalQueue(startState, 3); //generating 3 levelled deep states of boards 
-	cout<<"\n The Global Queue's size : "<<globalQueue.size()<<endl;
-	 //printQueueOfStates(globalQueue);
-
-
-	//until the Mgr has something to give, the localStartState = localQueue = globalQueue;       
-	//pop from the local queue and run DFS through it
-	globalBestState = startState;
-	globalBestVal = -9999;
-	while (!globalQueue.empty())
+	if (rank == 0)
 	{
-		localStartState = globalQueue.at(0);
-		globalQueue.pop_front();
-		int value = runAlphaBeta(localStartState, -9999, 9999, 4); 
-
-		if (value > globalBestVal)
+		if (initialiseState() == -1)
 		{
-			globalBestState = localStartState;
-			globalBestVal = value;
+			cout<<"\n Need to Abort";
+			exit(0);
+		}
+
+		cout<<"\n Processor '"<<rank<<"' : Beginning state - "<<endl;
+		displayBoard(startState);
+
+    	cout<<"\n Processor '"<<rank<<"' : Evaluation of the start state : "<<evalBoard(startState)<<endl;
+    	
+    	generateGlobalQueue(startState, 3); //generating 3 levelled deep states of boards 
+		cout<<"\n Processor '"<<rank<<"' : The Global Queue's size : "<<globalQueue.size()<<endl;
+		//printQueueOfStates(globalQueue);
+	
+		globalBestState = startState;
+		globalBestVal = -9999;
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD); //all threads are here, and the manager has some work ready in its queue
+
+	if (rank == 0)
+	{
+		starttime = MPI_Wtime();
+		"\n Processor '"<<rank<<"' : Start time :"<<starttime;
+
+		int count = globalQueue.size();
+		struct state localStartState;
+		for (int i=1; i<numProcs; i++) //sending some work for all to start on
+		{
+			localStartState = globalQueue.at(0);
+			globalQueue.pop_front();
+
+			MPI_Send(void*(localStartState), sizeof(localStartState), MPI_CHAR, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
+		}
+
+		
+		//continuously send the top of the globalQueue until its empty
+		while (count)
+		{
+			int *val;
+			void *receivedState, *receivedHashmap;
+
+			MPI_STATUS status;
+			MPI_RECV (val, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status); //2 represents the value
+			MPI_RECV (receivedState, 1, MPI_INT, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //3 Represents the state of the matrix
+			MPI_RECV (receivedHashmap, 1, MPI_INT, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status); //4 represents the HashMap
+			
+			count--;
+
+			//add the hashmap to mine
+
+			localStartState = globalQueue.at(0);
+
+			MPI_Send(void*(localStartState), sizeof(localStartState), MPI_CHAR, status.MPI_SOURCE, 0, MPI_COMM_WORLD);//0 corresponds to the state struct
+			MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, status.MPI_SOURCE, 1, MPI_COMM_WORLD);//1 corresponds to hash map
+			
+			globalQueue.pop_front();
+
+			if (*val > globalBestVal)
+			{
+				globalBestState = struct state*(stateReceived);
+				globalBestVal = *val;
+			}
+		}
+
+		//for loop that sends a DUMMY OBJECT with the player value = -1 to all my workers
+		for (int i=1; i<numProcs; i++) //sending some work for all to start on
+		{
+			localStartState = startState;
+			localStartState.player = -1;
+
+			MPI_ISend(void*(localStartState), sizeof(localStartState), MPI_CHAR, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			//may not need to send this
+				//MPI_ISend(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
 		}
 	}
 
-	cout<<"\n The Best first move for you to play would be : ";
-	cout<<"Player "<<globalBestState.path[0].second<<" : at ["<<globalBestState.path[0].first.first<<","<<globalBestState.path[0].first.second<<"]."<<endl;
+	else
+	{
+		struct state localStartState;
+		while (true) //if I received something from the manager the manager hasnt asked me to quit and ths	
+		{
+			void *receivedState, *receivedHashmap;
 
+			MPI_Recv(receivedState, sizeof(localStartState), MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //0 corresponds to the state struct
+			MPI_Recv(receivedHashmap, sizeof(globalHashMap), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			
+			localStartState = struct state *(receivedState);
+			if (localStartState.player == -1)
+				break;
+
+			//globalHashMap = 
+			int value = runAlphaBeta(localStartState, -9999, 9999, 4); 
+
+			MPI_Send (*value, 1, MPI_INT, 0, 2, MPI_COMM_WORLD); //2 represents the value
+			MPI_Send (void*(localStartState), sizeof(localStartState), MPI_CHAR,0, 3, MPI_COMM_WORLD); //3 Represents the state of the matrix
+			MPI_Send (void*(globalHashMap), sizeof(globalHashMap), MPI_CHAR, 0, 4, MPI_COMM_WORLD); //4 represents the HashMap
+		}
+		
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD); //post the while loop of the manager, and all the threads are done with their work, hence they're here
+	
+	if (rank == 0)
+	{
+		//call MPI_WTime again
+		endtime = MPI_Wtime();
+		timeTaken = endtime - starttime;
+
+		//Ultimately print the first pair of the best state, suggesting that path can be taken,
+		cout<<"\n The Best first move for you to play would be : ";
+		cout<<"Player "<<globalBestState.path[0].second<<" : at ["<<globalBestState.path[0].first.first<<","<<globalBestState.path[0].first.second<<"]."<<endl;
+		cout<<"\nTime Taken : "<<timeTaken<<endl;
+
+	}
+
+	MPI_Finalize();
+ 	return 0;
+  	
 	//displayBoard(globalBestState);
-
-    //string* result = mapToStrings(localHashMap); - To conver the local hashmap to a string before sending it to the Manager
-    //when the Manager receives this array of strings, it can loop through the array, and add to its global hashmap
-
-    //Have a function that receives HashString value from the worker
-
-    //cout<<"\n Hash Value : "<<giveHash(startState)<<endl;
-
-    /*for (int col = 0; col<numcols; col++)
-    {
-    	//check by putting startState.player into each of the columns
-    	//check if this new state is worth
-    		//if yes, add to the queue
-    }*/
-    
-    //from this state, check which player has moves and add all possible moves to a queue of states waiting to be traversed (which don't get pruned)
-    //from that queue pick values, and continue adding to the end of the queue those states that can be traversed
-    //Each is a queue of structs
-    //have a base best state, that keeps getting changed on reaching a terminating state that can be better
-
-    //Ultimately print the first pair of the best state, suggesting that path can be taken, by adding that path to the start state, and displaying start state
     //displayBoard(startState);
-   
-
     //testWin();
-
-
-     //ADDITIONAL
-    //If the user wishes to continue from there on, reset the algorithm, with the startState as the current modified State.
-
 }
+
+
+//ADDITIONAL
+//If the user wishes to continue from there on, reset the algorithm, with the startState as the current modified State.
 
 /*SINAN's MARSHALL AND DEMARSHALL CODE
 
