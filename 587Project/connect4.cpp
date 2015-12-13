@@ -53,17 +53,17 @@ double timeTaken=0;
 std::string level;
 int numProcs;
 int globalBestVal;
+
 std::unordered_map<std::string,bool> globalHashMap; //Maps to the String of the matrix state & the Bool that gives its visited value
 std::unordered_map<std::string,bool> localHashMap;
 
 struct state {
 
-    std::vector<std::pair<std::pair<int, int>, int> > path; //vector of pairs 
-    bool visited;
+    int path [12];
+    int board [numrows][numcols];
     int player;
     int boardSum;
-    std::vector<std::vector<int>> board;
-    std::vector<int> colHeight;
+    int colHeight [numcols];
 	//write a giveHash() function inside this, that takes the matrix, and sets a hash value for it in the global hash map,
 };
 
@@ -77,16 +77,16 @@ std::deque<struct state> localQueue;
 //gives the hash value for that state
 std::string giveHash(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	std::string hashVal;
     for(int c=0;c<numcols;c++)
     {
 		for(int r=0;r<numrows;r++)
 		{
-			if (board[r][c]==0) //End of elements in that column
+			if (temp.board[r][c]==0) //End of elements in that column
 				break;
             else
-            	hashVal+=std::to_string(board[r][c]);
+            	hashVal+=std::to_string(temp.board[r][c]);
 		}
 		hashVal+="|";
 	}		
@@ -103,15 +103,15 @@ void displayBoard(struct state temp)
 		cout<<" "<<col+1<<"  ";
 	cout<<"|\n";
 
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 
 	for(int row = numrows-1; row>=0; row--)
 	{	cout<<"|";
 		for(int col=0; col<numcols; col++)
 		{
-			if(board[row][col] == 1)
+			if(temp.board[row][col] == 1)
 				cout<<" X  ";
-			else if (board[row][col] == 2)
+			else if (temp.board[row][col] == 2)
 				cout<<" O  ";
 			else
 				cout<<" .  ";
@@ -148,36 +148,34 @@ int initialiseState()
 	startState.player = 1;
 	int sum;
 	//allocate memory for our state
-	std::vector<std::vector<int>> board;
+	//std::vector<std::vector<int>> board;
 
 	for(int r=0;r<numrows;r++)
-	{
-		std::vector<int> row;
 		for(int c=0;c<numcols;c++)
-			row.push_back(0);
-		board.push_back(row);
-	}
+			startState.board[r][c]=0;
 
 	if (level.compare("full") == 0)
 	{
-		board[0][0] = board[0][2] = board[0][3] = board[0][6] = board[1][1] = board[1][2] = board[1][4] = board[1][5]
-		= board[2][0] = board[2][4] = board[2][6] = board[3][1] = board[3][5] = board[4][3] = board[4][6] = 1;
+		startState.board[0][0] = startState.board[0][2] = startState.board[0][3] = startState.board[0][6] = startState.board[1][1] = startState.board[1][2] 
+		= startState.board[1][4] = startState.board[1][5] = startState.board[2][0] = startState.board[2][4] = startState.board[2][6] = startState.board[3][1] 
+		= startState.board[3][5] = startState.board[4][3] = startState.board[4][6] = 1;
 		
-		board[0][1] = board[0][4] = board[0][5] = board[1][0] = board[1][3] = board[1][6] = board[2][1] = board[2][2]
-		= board[2][3] = board[2][5] = board[3][2] = board[3][3] = board[3][4] = board[3][6] = board[4][5] = 2;
-		
+		startState.board[0][1] = startState.board[0][4] = startState.board[0][5] = startState.board[1][0] = startState.board[1][3] = startState.board[1][6] 
+		= startState.board[2][1] = startState.board[2][2] = startState.board[2][3] = startState.board[2][5] = startState.board[3][2] = startState.board[3][3] 
+		= startState.board[3][4] = startState.board[3][6] = startState.board[4][5] = 2;
+
 		startState.boardSum = 45;
 	}
 	else if (level.compare("middle") == 0)
 	{
-		board[0][0] = board[0][1] = board[0][2] = board[0][4] = board[1][2] = board[2][3] = board[2][4] = 1;
-		board[0][3] = board[1][0] = board[1][1] = board[1][3] = board[1][4] = board[2][2] = board[3][4] = 2;
+		startState.board[0][0] = startState.board[0][1] = startState.board[0][2] = startState.board[0][4] = startState.board[1][2] = startState.board[2][3] = startState.board[2][4] = 1;
+		startState.board[0][3] = startState.board[1][0] = startState.board[1][1] = startState.board[1][3] = startState.board[1][4] = startState.board[2][2] = startState.board[3][4] = 2;
 		startState.boardSum = 21;
 	}
 	else if (level.compare("begin") == 0)
 	{
-		board[0][1] = board[0][3] = board[0][4] = 1;
-		board[0][2] = board[0][5] = board[0][6] = 2;
+		startState.board[0][1] = startState.board[0][3] = startState.board[0][4] = 1;
+		startState.board[0][2] = startState.board[0][5] = startState.board[0][6] = 2;
 		startState.boardSum = 9;
 	}
 	else //incorrect Input
@@ -192,14 +190,14 @@ int initialiseState()
 	{
 		int height = 0;
 		for(int r=0;r<numrows;r++)
-			if(board[r][c] != 0)
+			if(startState.board[r][c] != 0)
 				++height;
 
-		startState.colHeight.push_back(height);
+		startState.colHeight[c] = height;
 		//cout<<"\n Height of column '"<<c<<"' is '"<<height<<endl;
 	}
 
-	startState.board = board;
+	//startState.board = board;
 	//displayBoard(startState);
 	return 0;
 }
@@ -207,22 +205,22 @@ int initialiseState()
 
 int checkWin(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	int winner = 0;
 	for(int row = 0; row < numrows; row ++)
 	{
 		for(int col = 0; col < numcols; col ++)
 		{
-			if(board[row][col] != 0)
+			if(temp.board[row][col] != 0)
 			{
 				// Across
 				if(col < numcols-3)
 				{
-					if (board[row][col] == board[row][col+1] &&
-						board[row][col] == board[row][col+2] &&
-						board[row][col] == board[row][col+3])
+					if (temp.board[row][col] == temp.board[row][col+1] &&
+						temp.board[row][col] == temp.board[row][col+2] &&
+						temp.board[row][col] == temp.board[row][col+3])
 						{
-							winner = board[row][col];
+							winner = temp.board[row][col];
 							break;
 						}
 				}
@@ -230,33 +228,33 @@ int checkWin(struct state temp)
 				// Upwards/downwards
 				if(row < numrows-3)
 				{
-					if (board[row][col] == board[row+1][col] &&
-						board[row][col] == board[row+2][col] &&
-						board[row][col] == board[row+3][col])
+					if (temp.board[row][col] == temp.board[row+1][col] &&
+						temp.board[row][col] == temp.board[row+2][col] &&
+						temp.board[row][col] == temp.board[row+3][col])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
 				//Diagonal down-right or up-left
 				if(row < numrows-3 && col < numcols-3)
 				{
-					if (board[row][col] == board[row+1][col+1] &&
-						board[row][col] == board[row+2][col+2] &&
-						board[row][col] == board[row+3][col+3])
+					if (temp.board[row][col] == temp.board[row+1][col+1] &&
+						temp.board[row][col] == temp.board[row+2][col+2] &&
+						temp.board[row][col] == temp.board[row+3][col+3])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
 				//Diagonal down-left or up-right
 				if(row > 3 && col < numcols-3)
 				{
-					if (board[row][col] == board[row-1][col+1] &&
-						board[row][col] == board[row-2][col+2] &&
-						board[row][col] == board[row-3][col+3])
+					if (temp.board[row][col] == temp.board[row-1][col+1] &&
+						temp.board[row][col] == temp.board[row-2][col+2] &&
+						temp.board[row][col] == temp.board[row-3][col+3])
 					{
-						winner = board[row][col];
+						winner = temp.board[row][col];
 						break;
 					}
 				}
@@ -268,24 +266,24 @@ int checkWin(struct state temp)
 	return (winner);
 }
 
-int testWin ()
-{
-	std::vector<std::vector<int>> board = startState.board;
-	/*board[4][3] = 2;
-	board[4][5] = 1;
-	board[1][0] = 1;
-	board[2][0] = 2;
-	board[2][4] = 2;
-	board[3][4] = 1;*/
-	int winner = checkWin(startState);
-	if(winner == 0)
-		cout<<"No Winner!"<<endl;
-	else
-		cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)"<<endl;
+// int testWin ()
+// {
+// 	std::vector<std::vector<int>> board = startState.board;
+// 	/*board[4][3] = 2;
+// 	board[4][5] = 1;
+// 	board[1][0] = 1;
+// 	board[2][0] = 2;
+// 	board[2][4] = 2;
+// 	board[3][4] = 1;*/
+// 	int winner = checkWin(startState);
+// 	if(winner == 0)
+// 		cout<<"No Winner!"<<endl;
+// 	else
+// 		cout<<"\nWinner = Player "<<winner<<". (1 = X & 2 = O)"<<endl;
 	
-	displayBoard(startState);
-	return 1;
-}
+// 	displayBoard(startState);
+// 	return 1;
+// }
 
 int checkDraw(struct state temp)
 {
@@ -296,7 +294,7 @@ int checkDraw(struct state temp)
 
 int evalBoard(struct state temp)
 {
-	std::vector<std::vector<int>> board = temp.board;
+	//std::vector<std::vector<int>> board = temp.board;
 	int winner = checkWin(temp);
 	if (winner == 1)
 		return +999;
@@ -312,9 +310,9 @@ int evalBoard(struct state temp)
 			int evalSum = 0;
 			for(int r=0;r<numrows;r++)
 				for(int c=0;c<numcols;c++)
-					if(board[r][c] == 1)
+					if(temp.board[r][c] == 1)
 						evalSum += evaluationTable[r][c];
-					else if (board[r][c]== 2)
+					else if (temp.board[r][c]== 2)
 						evalSum -= evaluationTable[r][c];
 			return evalSum;
 		}
@@ -342,10 +340,13 @@ void generateGlobalQueue(struct state temp, int depth)
 		if(move.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
 		{
 			int height = move.colHeight[i];
+			int pi = abs(depth-3) * 3;
 			move.board[height][i] = move.player; //adding the move to the board
 			//cout<<"\nPushing the player '"<<move.player<<"'' into column '"<<i<<"' with height '"<<height<<endl;
 			move.boardSum+=move.player; //add the player to the boardSum
-			move.path.push_back(std::make_pair(std::make_pair (height,i), move.player)); //Pushing back this pair into the path taken vector	
+			move.path[pi++] = height;
+			move.path[pi++] = i;
+			move.path[pi++] = move.player; //Pushing back this pair into the path taken vector	
 			move.player = 3 - move.player; //alternate the player
 			move.colHeight[i]++; //add the columnheight
 
@@ -402,7 +403,7 @@ int runAlphaBeta(struct state local, int alpha, int beta, int depth)
 			if(local.colHeight[i]<6) //means this column has space : its current value is between 0 & 5 inclusive, hence the move in this column is VALID
 			{
 				local.board[local.colHeight[i]][i] = local.player; //adding the move to the board
-				local.path.push_back(std::make_pair(std::make_pair (local.colHeight[i],i), local.player)); //Pushing back this pair into the path taken vector	
+				//local.path.push_back(std::make_pair(std::make_pair (local.colHeight[i],i), local.player)); //Pushing back this pair into the path taken vector	
 				local.boardSum+=local.player; //add the player to the boardSum
 				local.player = 3 - local.player; //alternate the player
 				local.colHeight[i]++; //add the columnheight
@@ -496,7 +497,7 @@ int main(int argc, char *argv[])
 	}
 
 	cout<<"\n The Best first move for you to play would be : ";
-	cout<<"Player "<<globalBestState.path[0].second<<" : at ["<<globalBestState.path[0].first.first<<","<<globalBestState.path[0].first.second<<"]."<<endl;
+	cout<<"Player "<<globalBestState.path[2]<<" : at ["<<globalBestState.path[0]<<","<<globalBestState.path[1]<<"]."<<endl;
 
 	//displayBoard(globalBestState);
 
