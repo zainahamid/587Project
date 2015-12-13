@@ -463,6 +463,7 @@ int main(int argc, char *argv[])
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &pid); //the rank of the current matrix
 	MPI_Comm_size(MPI_COMM_WORLD, &numProcs); //total number of processors
+	MPI_Status status;
 	
 	int array_of_blocklengths[NBLOCKS] = {12,42,1,1,7};
 	MPI_Aint array_of_displacements[NBLOCKS];
@@ -532,7 +533,7 @@ int main(int argc, char *argv[])
 
 			MPI_Send(&localStartState, 1, stateType, i, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
 			//MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, i, 1, MPI_COMM_WORLD); //1 corresponds to the hashmap
-			cout<<"\n Sent data for Player "<<localStartState.player<<" with sum "<<localStartState.sum<<" to Proc"<<i;
+			cout<<"\n Sent data for Player "<<localStartState.player<<" with sum "<<localStartState.boardSum<<" to Proc"<<i;
 			
 		}
 
@@ -540,35 +541,38 @@ int main(int argc, char *argv[])
 		//continuously send the top of the globalQueue until its empty
 		while (count)
 		{
-			int *val;
+			int val;
 			//void *receivedState, *receivedHashmap;
+			//
+			cout<<"\n\t ****** INSIDE SECOND LOOP OF ROOT ****** count : "<<count<<"\n";
 
-			MPI_Status status;
-			MPI_Recv (val, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status); //2 represents the value
-			//MPI_Recv (receivedState, sizeof(localStartState), MPI_BYTE, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //3 Represents the state of the matrix
 			MPI_Recv(&localStartState, 1, stateType, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //0 corresponds to the state struct
+			cout<<"\n Received data in 0 for Player "<<localStartState.player<<" from Proc"<<status.MPI_SOURCE;
 			
-			//MPI_RECV (receivedHashmap, 1, MPI_INT, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status); //4 represents the HashMap
-			cout<<"\n Received data in 0 for Player "<<localStartState.player<<" with VALUE "<<*val<<" from Proc"<<status.MPI_SOURCE;
+			MPI_Recv (&val, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status); //2 represents the value
+			cout<<"\n\t\t RECEIVED STATUS as VALue "<<val;
 
-
+			//MPI_Recv (receivedState, sizeof(localStartState), MPI_BYTE, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status); //3 Represents the state of the matrix
 			count--;
 
 			//add the hashmap to mine
+			//MPI_RECV (receivedHashmap, 1, MPI_INT, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status); //4 represents the HashMap
 
-			localStartState = globalQueue.at(0);
-
-			MPI_Send(&localStartState, 1, stateType, status.MPI_SOURCE, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
+			if (globalQueue.size())
+			{
+				localStartState = globalQueue.at(0);
+				MPI_Send(&localStartState, 1, stateType, status.MPI_SOURCE, 0, MPI_COMM_WORLD); //0 corresponds to the state struct
 			
-			//MPI_Send(void*(localStartState), sizeof(localStartState), MPI_BYTE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);//0 corresponds to the state struct
-			//MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, status.MPI_SOURCE, 1, MPI_COMM_WORLD);//1 corresponds to hash map
-			
-			globalQueue.pop_front();
+				//MPI_Send(void*(localStartState), sizeof(localStartState), MPI_BYTE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);//0 corresponds to the state struct
+				//MPI_Send(void*(globalHashMap), sizeof(globalHashMap), MPI_DOUBLE, status.MPI_SOURCE, 1, MPI_COMM_WORLD);//1 corresponds to hash map
+				globalQueue.pop_front();
+			}
 
-			if (*val > globalBestVal)
+			if (val > globalBestVal)
 			{
 				globalBestState = localStartState;
-				globalBestVal = *val;
+				globalBestVal = val;
+				cout<<"\n UPDATES VALUE!!!"<<endl;
 			}
 		}
 
@@ -589,13 +593,13 @@ int main(int argc, char *argv[])
 
 	else
 	{
-		int count = 20;
+		int count = 0;
 		cout<<"\n In Processor "<<pid;
 		struct state localStartState;
-		while (count--) //if I received something from the manager the manager hasnt asked me to quit and ths	
+		while (true) //if I received something from the manager the manager hasnt asked me to quit and ths	
 		{
 			//void *receivedState, *receivedHashmap;
-			cout<<endl<<"Processor "<<pid<<" & count : "<<count;
+			cout<<endl<<"Processor "<<pid<<" & count : "<<count++;
 
 			MPI_Recv(&localStartState, 1, stateType, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //0 corresponds to the state struct
 
@@ -609,10 +613,11 @@ int main(int argc, char *argv[])
 				break;
 
 			//globalHashMap = 
-			int value = runAlphaBeta(localStartState, -9999, 9999, 4); 
+			int value = runAlphaBeta(localStartState, -9999, 9999, 8); 
 
-			MPI_Send (&value, 1, MPI_INT, 0, 2, MPI_COMM_WORLD); //2 represents the value
 			MPI_Send(&localStartState, 1, stateType, 0, 3, MPI_COMM_WORLD); //0 corresponds to the state struct
+			MPI_Send (&value, 1, MPI_INT, 0, 2, MPI_COMM_WORLD); //2 represents the value
+			
 			cout<<"\n Sent data for Player "<<localStartState.player<<" with VALUE "<<value<<" in Proc"<<pid;
 			
 			
